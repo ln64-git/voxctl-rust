@@ -1,2 +1,3 @@
 pub mod azure;
-pub mod audio;
+pub mod log;
+pub mod playback;
