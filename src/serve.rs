@@ -1,6 +1,9 @@
 use actix_web::{web, App, HttpResponse, HttpServer, Result};
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, Mutex};
+use std::{
+    env,
+    sync::{Arc, Mutex},
+};
 
 use crate::_utils::azure::synthesize_speech;
 
@@ -14,6 +17,8 @@ struct ApiResponse {
 pub struct AppState {
     subscription_key: String,
     region: String,
+    voice_gender: String,
+    voice_name: String,
 }
 
 async fn play_endpoint(
@@ -21,17 +26,13 @@ async fn play_endpoint(
     payload: web::Json<serde_json::Value>,
 ) -> Result<HttpResponse> {
     let text = payload["text"].as_str().unwrap_or("Hello, world!");
-    let voice_gender = payload["voice_gender"].as_str().unwrap_or("Female");
-    let voice_name = payload["voice_name"].as_str().unwrap_or("en-US-AriaNeural");
-
-    println!("play_endpoint - making api call - {:#?}", text);
 
     let api_response = synthesize_speech(
         state.lock().unwrap().subscription_key.as_str(),
         state.lock().unwrap().region.as_str(),
+        state.lock().unwrap().voice_gender.as_str(),
+        state.lock().unwrap().voice_name.as_str(),
         text,
-        voice_gender,
-        voice_name,
     )
     .await;
 
@@ -75,9 +76,17 @@ async fn stop_endpoint(_state: web::Data<Arc<Mutex<AppState>>>) -> Result<HttpRe
 }
 
 pub async fn serve() {
+    dotenv::dotenv().ok();
+    let subscription_key = env::var("AZURE_SUBSCRIPTION_KEY").unwrap_or("".to_string());
+    let region = env::var("AZURE_REGION").unwrap_or("eastus".to_string());
+    let voice_gender = env::var("VOICE_GENDER").unwrap_or("Female".to_string());
+    let voice_name = env::var("VOICE_NAME").unwrap_or("en-US-JennyNeural".to_string());
+
     let state = Arc::new(Mutex::new(AppState {
-        subscription_key: "".to_string(),
-        region: "eastus".to_string(),
+        subscription_key,
+        region,
+        voice_gender,
+        voice_name,
     }));
 
     HttpServer::new(move || {

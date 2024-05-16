@@ -16,6 +16,7 @@ impl fmt::Display for ApiResponse {
         write!(f, "Status: {}\nBody: {}", self.status_code, self.body)
     }
 }
+
 pub async fn synthesize_speech(
     subscription_key: &str,
     region: &str,
@@ -23,15 +24,10 @@ pub async fn synthesize_speech(
     voice_gender: &str,
     voice_name: &str,
 ) -> Result<ApiResponse, Box<dyn Error>> {
-    println!("synthesize_speech - called - {:#?}", text);
-
-    let ssml = generate_ssml(text, voice_gender, voice_name);
-
-    let url = Url::parse(&format!("{} {}", API_ENDPOINT, region))
-        .map_err(|e| format!("Error parsing URL: {}", e))?;
-
     println!("synthesize_speech - {:#?}", text);
 
+    let ssml = generate_ssml(text, voice_gender, voice_name);
+    let url = Url::parse(&format!("{} {}", API_ENDPOINT, region))?;
     let client = Client::new();
     let response = client
         .post(url)
@@ -40,16 +36,10 @@ pub async fn synthesize_speech(
         .header("X-Microsoft-OutputFormat", "riff-48khz-16bit-mono-pcm")
         .body(ssml)
         .send()
-        .await
-        .map_err(|e| format!("Error sending request: {}", e))?;
+        .await?;
 
     let status_code = response.status().as_u16();
-    println!("synthesize_speech - status code - {:#?}", status_code);
-
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("Error reading response body: {}", e))?;
+    let body = response.text().await?;
 
     Ok(ApiResponse { status_code, body })
 }
