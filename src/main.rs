@@ -1,8 +1,10 @@
 use std::env;
+mod _utils;
 mod serve;
 
 #[tokio::main]
 async fn main() {
+    env_logger::init();
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2
@@ -49,7 +51,7 @@ async fn play(text: &str) {
         .await;
 
     match response {
-        Ok(res) => println!("Server response: {:?}", res.text().await),
+        Ok(res) => println!("main - {:?}", res.text().await),
         Err(err) => println!("Error sending request: {}", err),
     }
 }
@@ -60,7 +62,7 @@ async fn pause() {
     let response = client.post("http://localhost:3000/pause").send().await;
 
     match response {
-        Ok(res) => println!("Server response: {:?}", res.text().await),
+        Ok(res) => println!("main - {:?}", res.text().await),
         Err(err) => println!("Error sending request: {}", err),
     }
 }
@@ -71,7 +73,7 @@ async fn resume() {
     let response = client.post("http://localhost:3000/resume").send().await;
 
     match response {
-        Ok(res) => println!("Server response: {:?}", res.text().await),
+        Ok(res) => println!("main - {:?}", res.text().await),
         Err(err) => println!("Error sending request: {}", err),
     }
 }
@@ -82,7 +84,7 @@ async fn stop() {
     let response = client.post("http://localhost:3000/stop").send().await;
 
     match response {
-        Ok(res) => println!("Server response: {:?}", res.text().await),
+        Ok(res) => println!("main - {:?}", res.text().await),
         Err(err) => println!("Error sending request: {}", err),
     }
 }

@@ -1,63 +1,96 @@
-// serve.rs
-use axum::{routing::post, Router};
+use actix_web::{web, App, HttpResponse, HttpServer, Result};
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
-struct AppState {
-    // Add any necessary shared state here
+use crate::_utils::azure::synthesize_speech;
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ApiResponse {
+    status: &'static str,
+    message: String,
+}
+
+#[derive(Debug)]
+pub struct AppState {
+    subscription_key: String,
+    region: String,
+}
+
+async fn play_endpoint(
+    state: web::Data<Arc<Mutex<AppState>>>,
+    payload: web::Json<serde_json::Value>,
+) -> Result<HttpResponse> {
+    let text = payload["text"].as_str().unwrap_or("Hello, world!");
+    let voice_gender = payload["voice_gender"].as_str().unwrap_or("Female");
+    let voice_name = payload["voice_name"].as_str().unwrap_or("en-US-AriaNeural");
+
+    println!("play_endpoint - making api call - {:#?}", text);
+
+    let api_response = synthesize_speech(
+        state.lock().unwrap().subscription_key.as_str(),
+        state.lock().unwrap().region.as_str(),
+        text,
+        voice_gender,
+        voice_name,
+    )
+    .await;
+
+    match api_response {
+        Ok(response) => Ok(HttpResponse::Ok().json(ApiResponse {
+            status: "success",
+            message: response.body,
+        })),
+        Err(err) => Ok(HttpResponse::InternalServerError().json(ApiResponse {
+            status: "error",
+            message: format!("Error synthesizing speech: {}", err),
+        })),
+    }
+}
+
+async fn pause_endpoint(_state: web::Data<Arc<Mutex<AppState>>>) -> Result<HttpResponse> {
+    println!("Pausing the current playback...");
+    // Implement the logic to pause the current playback
+    Ok(HttpResponse::Ok().json(ApiResponse {
+        status: "success",
+        message: "Playback paused".to_string(),
+    }))
+}
+
+async fn resume_endpoint(_state: web::Data<Arc<Mutex<AppState>>>) -> Result<HttpResponse> {
+    println!("Resuming the paused playback...");
+    // Implement the logic to resume the paused playback
+    Ok(HttpResponse::Ok().json(ApiResponse {
+        status: "success",
+        message: "Playback resumed".to_string(),
+    }))
+}
+
+async fn stop_endpoint(_state: web::Data<Arc<Mutex<AppState>>>) -> Result<HttpResponse> {
+    println!("Stopping the current playback...");
+    // Implement the logic to stop the current playback
+    Ok(HttpResponse::Ok().json(ApiResponse {
+        status: "success",
+        message: "Playback stopped".to_string(),
+    }))
 }
 
 pub async fn serve() {
-    let app_state = Arc::new(Mutex::new(AppState {
-      // Initialize any shared state here
-  }));
+    let state = Arc::new(Mutex::new(AppState {
+        subscription_key: "".to_string(),
+        region: "eastus".to_string(),
+    }));
 
-    // Build the application with routes
-    let app = Router::new()
-        .route("/play", post(handle_play))
-        .route("/pause", post(handle_pause))
-        .route("/resume", post(handle_resume))
-        .route("/stop", post(handle_stop))
-        .with_state(app_state);
-
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-    println!(
-        "Starting the speech service on {}",
-        listener.local_addr().unwrap()
-    );
-
-    axum::serve(listener, app).await.unwrap();
-}
-
-async fn handle_play(
-    axum::extract::State(_state): axum::extract::State<Arc<Mutex<AppState>>>,
-    axum::extract::Json(payload): axum::extract::Json<serde_json::Value>,
-) -> impl axum::response::IntoResponse {
-    let text = payload["text"].as_str().unwrap_or("");
-    println!("Playing text: {}", text);
-    // Implement the logic to play the provided text
-    axum::response::Json(serde_json::json!({ "status": "success" }))
-}
-
-async fn handle_pause(
-    axum::extract::State(_state): axum::extract::State<Arc<Mutex<AppState>>>,
-) -> impl axum::response::IntoResponse {
-    println!("Pausing the current playback...");
-    // Implement the logic to pause the current playback
-    axum::response::Json(serde_json::json!({ "status": "success" }))
-}
-
-async fn handle_resume(
-    axum::extract::State(_state): axum::extract::State<Arc<Mutex<AppState>>>,
-) -> impl axum::response::IntoResponse {
-    println!("Resuming the paused playback...");
-    // Implement the logic to resume the paused playback
-    axum::response::Json(serde_json::json!({ "status": "success" }))
-}
-
-async fn handle_stop(
-    axum::extract::State(_state): axum::extract::State<Arc<Mutex<AppState>>>,
-) -> impl axum::response::IntoResponse {
-    println!("Stopping the current playback...");
-    // Implement the logic to stop the current playback
-    axum::response::Json(serde_json::json!({ "status": "success" }))
+    HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(Arc::clone(&state)))
+            .route("/play", web::post().to(play_endpoint))
+            .route("/pause", web::post().to(pause_endpoint))
+            .route("/resume", web::post().to(resume_endpoint))
+            .route("/stop", web::post().to(stop_endpoint))
+    })
+    .bind("0.0.0.0:3000")
+    .unwrap()
+    .run()
+    .await
+    .unwrap();
 }
